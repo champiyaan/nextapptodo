@@ -2,17 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaSpinner } from "react-icons/fa";
 
 export default function Home() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
       const res = await fetch("/api/login", {
@@ -20,7 +24,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, rememberMe }),
       });
 
       const data = await res.json();
@@ -28,11 +32,13 @@ export default function Home() {
       if (res.ok) {
         router.push("/dashboard");
       } else {
-        setError(data.message || "An error occurred");
+        setError(data.message || "Invalid credentials");
       }
     } catch (err) {
       console.error("Error during login:", err);
-      setError("An error occurred");
+      setError("Server error. Please try again later.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -89,11 +95,27 @@ export default function Home() {
             {showPassword ? <FaEyeSlash /> : <FaEye />}
           </span>
         </div>
+        <div className="mb-6 flex items-center">
+          <input
+            id="rememberMe"
+            type="checkbox"
+            checked={rememberMe}
+            onChange={() => setRememberMe(!rememberMe)}
+            className="mr-2"
+          />
+          <label
+            htmlFor="rememberMe"
+            className="text-sm font-medium text-gray-700"
+          >
+            Remember Me
+          </label>
+        </div>
         <button
           type="submit"
-          className="py-3 bg-black text-white rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black transition duration-150 ease-in-out w-full"
+          className="py-3 bg-black text-white rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black transition duration-150 ease-in-out w-full flex justify-center items-center"
+          disabled={loading}
         >
-          Sign In
+          {loading ? <FaSpinner className="animate-spin mr-2" /> : "Sign In"}
         </button>
         {error && <p className="text-red-500 text-center mt-4">{error}</p>}
       </form>

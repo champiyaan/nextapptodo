@@ -2,21 +2,41 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { CSSTransition, TransitionGroup } from "react-transition-group";
+import { FaSpinner } from "react-icons/fa";
 
+// Toast component definition
+const Toast = ({ message, onClose }) => {
+  return (
+    <div className="fixed bottom-4 right-4 bg-gray-900 text-white p-4 rounded-lg shadow-lg flex items-center space-x-4">
+      <span>{message}</span>
+      <button
+        onClick={onClose}
+        className="text-gray-400 hover:text-gray-200 focus:outline-none"
+      >
+        &times;
+      </button>
+    </div>
+  );
+};
+
+// Dashboard component
 export default function Dashboard() {
   const [task, setTask] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [todos, setTodos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editTodoId, setEditTodoId] = useState(null);
   const [editTask, setEditTask] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editPriority, setEditPriority] = useState("Medium");
+  const [deletingTodoId, setDeletingTodoId] = useState(null); // State for delete loading
+  const [toastMessage, setToastMessage] = useState(""); // State for toast notifications
 
   const router = useRouter();
 
-  // Fetch todos on component mount
   useEffect(() => {
     const fetchTodos = async () => {
       try {
@@ -29,13 +49,14 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error("Error fetching todos:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchTodos();
   }, []);
 
-  // Handle adding a new todo
   const handleAddTodo = async (e) => {
     e.preventDefault();
 
@@ -49,7 +70,7 @@ export default function Dashboard() {
           task,
           due_date: dueDate,
           priority,
-          user_id: 1, // Replace with actual user ID from your auth system
+          user_id: 1,
         }),
       });
 
@@ -60,18 +81,22 @@ export default function Dashboard() {
         setDueDate("");
         setPriority("Medium");
         setError("");
+        setToastMessage("Todo added successfully");
       } else {
         const data = await res.json();
         setError(data.message || "An error occurred");
+        setToastMessage("Failed to add todo");
       }
     } catch (err) {
       console.error("Error during form submission:", err);
       setError("An error occurred");
+      setToastMessage("An error occurred");
     }
   };
 
-  // Handle deleting a todo
   const handleDeleteTodo = async (id) => {
+    setDeletingTodoId(id); // Start delete loading
+
     try {
       const res = await fetch(`/api/todos/${id}`, {
         method: "DELETE",
@@ -79,17 +104,22 @@ export default function Dashboard() {
 
       if (res.ok) {
         setTodos((prevTodos) => prevTodos.filter((todo) => todo.id !== id));
+        setDeletingTodoId(null); // End delete loading
+        setToastMessage("Todo deleted successfully");
       } else {
         const data = await res.json();
         setError(data.message || "Failed to delete todo");
+        setDeletingTodoId(null); // End delete loading
+        setToastMessage("Failed to delete todo");
       }
     } catch (err) {
       console.error("Error deleting todo:", err);
       setError("An error occurred");
+      setDeletingTodoId(null); // End delete loading
+      setToastMessage("An error occurred");
     }
   };
 
-  // Handle editing a todo
   const handleEditTodo = async (id) => {
     try {
       const res = await fetch(`/api/todos/${id}`, {
@@ -114,18 +144,23 @@ export default function Dashboard() {
         setEditDueDate("");
         setEditPriority("Medium");
         setError("");
+        setToastMessage("Todo updated successfully");
       } else {
         const data = await res.json();
         setError(data.message || "An error occurred");
+        setToastMessage("Failed to update todo");
       }
     } catch (err) {
       console.error("Error updating todo:", err);
       setError("An error occurred");
+      setToastMessage("An error occurred");
     }
   };
 
+  const handleCloseToast = () => setToastMessage("");
+
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-100 p-8">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-r from-gray-100 to-gray-200 p-8">
       {/* Form Section */}
       <div className="w-full md:w-1/2 p-6 bg-white rounded-lg shadow-lg">
         <h1 className="text-2xl font-semibold mb-6 text-gray-900">
@@ -145,7 +180,7 @@ export default function Dashboard() {
               value={task}
               onChange={(e) => setTask(e.target.value)}
               required
-              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter task"
             />
           </div>
@@ -162,7 +197,7 @@ export default function Dashboard() {
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
               required
-              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
@@ -177,17 +212,14 @@ export default function Dashboard() {
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
               required
-              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="Low">Low</option>
               <option value="Medium">Medium</option>
               <option value="High">High</option>
             </select>
           </div>
-          <button
-            type="submit"
-            className="w-full py-3 bg-black text-white rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black transition duration-150 ease-in-out"
-          >
+          <button type="submit" className="w-full py-3 btn-black">
             Add ToDo
           </button>
           {error && <p className="text-red-500 mt-4">{error}</p>}
@@ -199,111 +231,131 @@ export default function Dashboard() {
         <h1 className="text-2xl font-semibold mb-6 text-gray-900">
           ToDos List
         </h1>
-        <ul className="space-y-6">
-          {todos.map((todo) => (
-            <li
-              key={todo.id}
-              className="p-4 border border-gray-200 rounded-lg shadow-sm bg-gray-50"
-            >
-              {editTodoId === todo.id ? (
-                <div>
-                  <div>
-                    <label
-                      htmlFor="editTask"
-                      className="block text-sm font-medium mb-2 text-gray-700"
-                    >
-                      Task:
-                    </label>
-                    <input
-                      id="editTask"
-                      type="text"
-                      value={editTask}
-                      onChange={(e) => setEditTask(e.target.value)}
-                      required
-                      className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black mb-4"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="editDueDate"
-                      className="block text-sm font-medium mb-2 text-gray-700"
-                    >
-                      Due Date:
-                    </label>
-                    <input
-                      id="editDueDate"
-                      type="date"
-                      value={editDueDate}
-                      onChange={(e) => setEditDueDate(e.target.value)}
-                      required
-                      className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black mb-4"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="editPriority"
-                      className="block text-sm font-medium mb-2 text-gray-700"
-                    >
-                      Priority:
-                    </label>
-                    <select
-                      id="editPriority"
-                      value={editPriority}
-                      onChange={(e) => setEditPriority(e.target.value)}
-                      required
-                      className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black mb-4"
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={() => handleEditTodo(todo.id)}
-                    className="bg-black text-white p-2 rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black transition duration-150 ease-in-out mr-2"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditTodoId(null)}
-                    className="bg-gray-600 text-white p-2 rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 transition duration-150 ease-in-out"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-lg font-medium text-gray-900">
-                      {todo.task}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Due: {new Date(todo.due_date).toLocaleDateString()}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Priority: {todo.priority}
-                    </p>
-                  </div>
-                  <div className="space-x-2">
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <FaSpinner className="animate-spin text-indigo-500 text-4xl" />
+          </div>
+        ) : (
+          <TransitionGroup component="ul" className="space-y-6">
+            {todos.map((todo) => (
+              <CSSTransition key={todo.id} timeout={500} classNames="fade">
+                <li className="p-4 border border-gray-200 rounded-lg shadow-sm bg-gray-50 transition-transform transform hover:scale-105 relative">
+                  {deletingTodoId === todo.id && (
+                    <div className="absolute inset-0 flex justify-center items-center bg-gray-200 opacity-75 rounded-lg">
+                      <FaSpinner className="animate-spin text-indigo-500 text-2xl" />
+                    </div>
+                  )}
+                  <h2 className="text-xl font-medium text-gray-800 mb-2">
+                    {todo.task}
+                  </h2>
+                  <p className="text-gray-600 mb-2">
+                    Due: {new Date(todo.due_date).toLocaleDateString()} -{" "}
+                    {todo.priority}
+                  </p>
+                  <div className="flex space-x-4">
                     <button
-                      onClick={() => setEditTodoId(todo.id)}
-                      className="bg-black text-white p-2 rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black transition duration-150 ease-in-out"
+                      onClick={() => {
+                        setEditTodoId(todo.id);
+                        setEditTask(todo.task);
+                        setEditDueDate(todo.due_date);
+                        setEditPriority(todo.priority);
+                      }}
+                      className="py-2 px-4 btn-black hover:bg-gray-700"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDeleteTodo(todo.id)}
-                      className="bg-black text-white p-2 rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black transition duration-150 ease-in-out"
+                      disabled={deletingTodoId === todo.id}
+                      className="py-2 px-4 btn-black hover:bg-red-700"
                     >
-                      Delete
+                      {deletingTodoId === todo.id ? (
+                        <FaSpinner className="animate-spin text-white" />
+                      ) : (
+                        "Delete"
+                      )}
                     </button>
                   </div>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                </li>
+              </CSSTransition>
+            ))}
+          </TransitionGroup>
+        )}
+        {editTodoId && (
+          <div className="mt-6 bg-gray-100 p-6 rounded-lg shadow-lg">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">
+              Edit ToDo
+            </h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleEditTodo(editTodoId);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label
+                  htmlFor="editTask"
+                  className="block text-sm font-medium mb-2 text-gray-700"
+                >
+                  Task:
+                </label>
+                <input
+                  id="editTask"
+                  type="text"
+                  value={editTask}
+                  onChange={(e) => setEditTask(e.target.value)}
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="editDueDate"
+                  className="block text-sm font-medium mb-2 text-gray-700"
+                >
+                  Due Date:
+                </label>
+                <input
+                  id="editDueDate"
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="editPriority"
+                  className="block text-sm font-medium mb-2 text-gray-700"
+                >
+                  Priority:
+                </label>
+                <select
+                  id="editPriority"
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(e.target.value)}
+                  required
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </div>
+              <button type="submit" className="w-full py-3 btn-black">
+                Update ToDo
+              </button>
+            </form>
+          </div>
+        )}
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <Toast message={toastMessage} onClose={handleCloseToast} />
+      )}
     </div>
   );
 }
